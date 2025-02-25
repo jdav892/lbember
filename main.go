@@ -67,3 +67,22 @@ func (s *ServerPool) GetNextPeer() *Backend {
   }
   return nil
 }
+
+//lb balances the incoming request
+func lb(w http.ResponseWriter, r *http.Request) {
+  peer := serverPoo.GetNextPeer()
+  if peer != nil {
+    peer.ReverseProxy.ServeHttp(w, r)
+    return
+  }
+  http.Error(w, "Service not available", http.StatusServiceUnavailable)
+}
+
+func main() {
+
+  //passes method to HandlerFunc
+  server := http.Server{
+    Address: fmt.Sprintf(":d%", port),
+    Handler: http.HandlerFunc(lb),
+  }
+}
