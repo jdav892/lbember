@@ -15,6 +15,21 @@ type Backend struct {
   ReverseProxy    *httputil.ReverseProxy
 }
 
+//Set alive for this backend
+func (b *Backend) SetAlive(alive bool){
+  b.mux.Lock()
+  b.Alive = alive
+  b.mux.Unlock()
+}
+
+//IsAlive returns true when backend is alive
+func (b *Backend) isAlive() (alive bool) {
+  b.mux.RLock()
+  alive = b.Alive
+  b.mux.RUnlock()
+  return
+}
+
 //struct to track all backends in balancer
 type ServerPool struct {
   backends    []*Backend
@@ -28,6 +43,7 @@ rp := httputil.NewSingleHostReverseProxy(u)
 
 //initializes server and adds handler
 http.HandlerFunc(rp.ServeHTTP)
+fmt.Println("Server running")
 
 //increments index atomically 
 func (s *ServerPool) NextIndex() int {
