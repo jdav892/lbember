@@ -15,6 +15,12 @@ import (
   "time"
 )
 
+//implements constants incrementally, each containing a unique value
+const (
+  Attmepts int = iota 
+  Retry
+)
+
 //structs to hold backends
 type Backend struct {
   URL   *url.URL
@@ -44,15 +50,6 @@ type ServerPool struct {
   current   uint64
 }
 
-//relays requests through ReverseProxy
-u, _ := url.Parse("http://localhost:8080")
-rp := httputil.NewSingleHostReverseProxy(u)
-
-
-//initializes server and adds handler
-http.HandlerFunc(rp.ServeHTTP)
-fmt.Println("Server running")
-
 //increments index atomically 
 func (s *ServerPool) NextIndex() int {
   return int(atomic.AddUint64(&s.current, uint64(1)) % uint64(len(s.backends)))
@@ -67,7 +64,7 @@ func (s *ServerPool) GetNextPeer() *Backend {
     idx := i % len(s.backends) //take an index by modding with length
     //if backend is alive, use it and store if its not the original
     if s.backends[idx].IsAlive() {
-      if != next {
+      if i != next {
         atomic.StoreUint64(&s.current, uint64(idx)) //to mark current one
       }
       return s.backends[idx]
@@ -76,10 +73,9 @@ func (s *ServerPool) GetNextPeer() *Backend {
   return nil
 }
 
-
-proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, e error) {
-  log.Printf("[%s] %s\n", serverUrl.Host, e.Error())
+  proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, e error) {
   retries := GetRetryFromContext(request)
+  log.Printf("[%s] %s\n", serverUrl.Host, e.Error())
   if retries < 3 {
     select {
     case <-time.After(10 * time.Millisecond):
@@ -116,9 +112,24 @@ func lb(w http.ResponseWriter, r *http.Request) {
   http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
+//returns the attempts for request
+func GetRetryFromContext(r *http.Request) int {
+  if retry, ok := r.Context().Value(Retry).(int); ok {
+    return retry
+  }
+  return 0
+}
 
 func main() {
+  //relays requests through ReverseProxy
+  u, _ := url.Parse("http://localhost:8080")
+  rp := httputil.NewSingleHostReverseProxy(u)
 
+
+  //initializes server and adds handler
+  http.HandlerFunc(rp.ServeHTTP)
+  fmt.Println("Server running")
+  
   //passes method to HandlerFunc
   server := http.Server{
     Address: fmt.Sprintf(":d%", port),
