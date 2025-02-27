@@ -76,15 +76,6 @@ func (s *ServerPool) GetNextPeer() *Backend {
   return nil
 }
 
-//lb balances the incoming request
-func lb(w http.ResponseWriter, r *http.Request) {
-  peer := serverPoo.GetNextPeer()
-  if peer != nil {
-    peer.ReverseProxy.ServeHttp(w, r)
-    return
-  }
-  http.Error(w, "Service not available", http.StatusServiceUnavailable)
-}
 
 proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, e error) {
   log.Printf("[%s] %s\n", serverUrl.Host, e.Error())
@@ -106,6 +97,25 @@ proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, e e
   ctx := context.WithValue(request.Context(), Attempts, attempts+1)
   lb(writer, requet.WithContext(ctx))
 }
+
+//lb balances the incoming request
+func lb(w http.ResponseWriter, r *http.Request) {
+  attempts := GetAttemptsFromContext(r)
+  if attempts > 3 {
+    log.Printf("%s(%s) Max attempts reached, terminating\n", r.RemoteAddr, r.URL.Path)
+    http.Error(w, "Service not available", http.StatusServiceUnavailable)
+    return
+  }
+
+
+  peer := serverPool.GetNextPeer()
+  if peer != nil {
+    peer.ReverseProxy.ServeHttp(w, r)
+    return
+  }
+  http.Error(w, "Service not available", http.StatusServiceUnavailable)
+}
+
 
 func main() {
 
