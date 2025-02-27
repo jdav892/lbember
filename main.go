@@ -86,6 +86,27 @@ func lb(w http.ResponseWriter, r *http.Request) {
   http.Error(w, "Service not available", http.StatusServiceUnavailable)
 }
 
+proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, e error) {
+  log.Printf("[%s] %s\n", serverUrl.Host, e.Error())
+  retries := GetRetryFromContext(request)
+  if retries < 3 {
+    select {
+    case <-time.After(10 * time.Millisecond):
+      ctx := context.WithValue(request.Context(), Retry, retries+1)
+      proxy.ServeHttp(writer, request.WithContext(ctx))
+    }
+    return 
+  }
+
+  //after 3 retries, make this backend as down
+  serverPool.MarkBackendStatus(serverUrl, false)
+  //if the same request routing for few attempts with different backends, increase the count
+  attempts := GetAttemptsFromContext
+  log.Printf("%s(%s) Attempting retry %d\n", request.RemoteAddr, request.URL.Path, attempts)
+  ctx := context.WithValue(request.Context(), Attempts, attempts+1)
+  lb(writer, requet.WithContext(ctx))
+}
+
 func main() {
 
   //passes method to HandlerFunc
