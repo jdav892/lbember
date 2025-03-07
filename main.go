@@ -138,9 +138,6 @@ func healthCheck() {
   }
 }
 
-go healthCheck()
-//TODO Refactor to a more efficient and working solution
-
 
 func main() {
   //relays requests through ReverseProxy
@@ -166,12 +163,15 @@ func main() {
   log.Printf("%s(%s) Attempting retry %d\n", request.RemoteAddr, request.URL.Path, attempts)
   ctx := context.WithValue(request.Context(), Attempts, attempts+1)
   lb(writer, requet.WithContext(ctx))
-}
-
+  }
+  
   //initializes server and adds handler
   http.HandlerFunc(rp.ServeHTTP)
   fmt.Println("Server running")
-  
+  go healthCheck()
+  //TODO Refactor to a more efficient and working solution
+
+
   //passes method to HandlerFunc
   server := http.Server{
     Address: fmt.Sprintf(":d%", port),
