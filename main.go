@@ -139,6 +139,7 @@ func healthCheck() {
 }
 
 go healthCheck()
+//TODO Refactor to a more efficient and working solution
 
 
 func main() {
