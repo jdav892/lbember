@@ -126,6 +126,20 @@ func (s *ServerPool) HealthCheck() {
 }
 
 
+func healthCheck() {
+  t := time.NewTicker(time.Second * 20)
+  for {
+    select {
+    case <-t.C:
+      log.Println("Starting health check...")
+      serverPool.HealthCheck
+      log.pringln("Health check completed")
+    }
+  }
+}
+
+go healthCheck()
+
 
 func main() {
   //relays requests through ReverseProxy
